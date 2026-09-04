@@ -62,6 +62,15 @@ const averageCrowd =
       ) / reviewCount
     : null;
 
+    const overallRating =
+  reviewCount > 0
+    ? (averageNoise! +
+        averageWifi! +
+        averageOutlets! +
+        averageCrowd!) /
+      4
+    : null;
+
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Navigation */}
@@ -100,6 +109,18 @@ const averageCrowd =
           <h1 className="mt-2 text-4xl font-bold tracking-tight text-gray-900">
             {studySpot.name}
           </h1>
+
+        {overallRating !== null && (
+            <div className="mt-4 flex items-center gap-3">
+                <span className="text-2xl font-semibold text-gray-900">
+                ⭐ {overallRating.toFixed(1)}
+                </span>
+
+                <span className="text-sm text-gray-500">
+                Based on {reviewCount} review{reviewCount !== 1 ? "s" : ""}
+                </span>
+            </div>
+        )}
 
           <p className="mt-4 max-w-2xl text-lg text-gray-600">
             {studySpot.description}
@@ -219,7 +240,7 @@ const averageCrowd =
         <p className="mt-2 text-xs text-gray-500">
             {new Date(review.created_at).toLocaleDateString()}
         </p>
-        
+
       </div>
     ))}
   </div>
