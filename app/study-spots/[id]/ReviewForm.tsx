@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type ReviewFormProps = {
@@ -8,6 +9,8 @@ type ReviewFormProps = {
 };
 
 export default function ReviewForm({ studySpotId }: ReviewFormProps) {
+  const router = useRouter();
+
   const [noiseRating, setNoiseRating] = useState(5);
   const [wifiRating, setWifiRating] = useState(5);
   const [outletRating, setOutletRating] = useState(5);
@@ -43,6 +46,7 @@ export default function ReviewForm({ studySpotId }: ReviewFormProps) {
     setOutletRating(5);
     setCrowdRating(5);
     setComment("");
+    router.refresh();
     }
 
     setSubmitting(false);
