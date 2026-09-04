@@ -37,13 +37,12 @@ export default function ReviewForm({ studySpotId }: ReviewFormProps) {
       console.error(error);
       setMessage("Could not submit your review. Please try again.");
     } else {
-      setMessage("Review submitted successfully!");
-
-      setNoiseRating(5);
-      setWifiRating(5);
-      setOutletRating(5);
-      setCrowdRating(5);
-      setComment("");
+    setMessage("Review submitted successfully!");
+    setNoiseRating(5);
+    setWifiRating(5);
+    setOutletRating(5);
+    setCrowdRating(5);
+    setComment("");
     }
 
     setSubmitting(false);
