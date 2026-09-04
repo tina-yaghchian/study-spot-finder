@@ -26,14 +26,24 @@ export default function ReviewForm({ studySpotId }: ReviewFormProps) {
     setSubmitting(true);
     setMessage("");
 
+    const {
+    data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+    setMessage("You must be logged in to submit a review.");
+    setSubmitting(false);
+    return;
+    }
+
     const { error } = await supabase.from("reviews").insert({
-      study_spot_id: studySpotId,
-      user_id: null,
-      noise_rating: noiseRating,
-      wifi_rating: wifiRating,
-      outlet_rating: outletRating,
-      crowd_rating: crowdRating,
-      comment: comment || null,
+    study_spot_id: studySpotId,
+    user_id: user.id,
+    noise_rating: noiseRating,
+    wifi_rating: wifiRating,
+    outlet_rating: outletRating,
+    crowd_rating: crowdRating,
+    comment: comment || null,
     });
 
     if (error) {
