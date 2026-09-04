@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 export default async function Home() {
   const { data: studySpots, error } = await supabase
@@ -117,9 +118,12 @@ export default async function Home() {
                   </p>
                 </div>
 
-                <button className="mt-5 w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800">
-                  View Study Spot
-                </button>
+                  <Link
+                    href={`/study-spots/${spot.id}`}
+                    className="mt-5 block w-full rounded-lg bg-gray-900 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-gray-800"
+                  >
+                   View Study Spot
+                  </Link>
               </div>
             ))}
           </div>
