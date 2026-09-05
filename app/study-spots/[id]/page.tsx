@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ReviewForm from "./ReviewForm";
+import StudySpotMap from "@/app/Map";
 
 type PageProps = {
   params: Promise<{
@@ -188,10 +189,13 @@ const averageCrowd =
             </p>
 
             <div className="mt-6 rounded-xl bg-gray-100 p-6 text-center">
-              <p className="text-sm text-gray-500">
-                🗺️ Map coming soon
-              </p>
-            </div>
+  <div className="mt-4">
+    <StudySpotMap
+      latitude={studySpot.latitude}
+      longitude={studySpot.longitude}
+    />
+  </div>
+</div>
           </div>
 
         </div>
