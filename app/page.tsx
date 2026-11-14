@@ -1,134 +1,77 @@
 import { supabase } from "@/lib/supabase";
-import Link from "next/link";
+import { summarizeReviews } from "@/lib/ratings";
+import type { Review, StudySpot } from "@/lib/types";
+import SpotExplorer, { type SpotWithSummary } from "./SpotExplorer";
 
-export default async function Home() {
-  const { data: studySpots, error } = await supabase
-    .from("study_spots")
-    .select("*")
-    .order("name");
+type RatingRow = Pick<
+  Review,
+  | "study_spot_id"
+  | "noise_rating"
+  | "wifi_rating"
+  | "outlet_rating"
+  | "crowd_rating"
+>;
 
-  if (error) {
-    return (
-      <main className="min-h-screen bg-gray-50 p-8">
-        <h1 className="text-2xl font-bold text-red-600">
-          Something went wrong
-        </h1>
-        <p className="mt-2 text-gray-600">{error.message}</p>
-      </main>
-    );
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const [spotsResult, reviewsResult, params] = await Promise.all([
+    supabase.from("study_spots").select("*").order("name"),
+    supabase
+      .from("reviews")
+      .select(
+        "study_spot_id, noise_rating, wifi_rating, outlet_rating, crowd_rating"
+      ),
+    searchParams,
+  ]);
+
+  if (spotsResult.error) throw new Error(spotsResult.error.message);
+  if (reviewsResult.error) throw new Error(reviewsResult.error.message);
+
+  const spots = (spotsResult.data ?? []) as StudySpot[];
+  const ratings = (reviewsResult.data ?? []) as RatingRow[];
+
+  const ratingsBySpot = new Map<string, RatingRow[]>();
+  for (const row of ratings) {
+    const list = ratingsBySpot.get(row.study_spot_id) ?? [];
+    list.push(row);
+    ratingsBySpot.set(row.study_spot_id, list);
   }
 
+  const spotsWithSummary: SpotWithSummary[] = spots.map((spot) => ({
+    ...spot,
+    summary: summarizeReviews(ratingsBySpot.get(spot.id) ?? []),
+  }));
+
+  const initialQuery = Object.fromEntries(
+    Object.entries(params).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? value[0] : value,
+    ])
+  ) as Record<string, string | undefined>;
+
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="border-b bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <h1 className="text-xl font-bold text-gray-900">
-            📚 StudySpot
+    <main>
+      <section className="border-b border-line bg-surface">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+          <p className="text-sm font-medium text-accent">
+            University of Waterloo
+          </p>
+          <h1 className="mt-2 max-w-2xl text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+            Compare campus study spaces before you walk over.
           </h1>
-
-          <button className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">
-            Sign In
-          </button>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section className="mx-auto max-w-6xl px-6 py-16 text-center">
-        <h2 className="text-4xl font-bold tracking-tight text-gray-900">
-          Find your perfect study spot
-        </h2>
-
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-          Discover the best places to study on campus based on noise,
-          WiFi, outlets, and crowd levels.
-        </p>
-
-        {/* Search */}
-        <div className="mx-auto mt-8 max-w-xl">
-          <input
-            type="text"
-            placeholder="Search for a study spot..."
-            className="w-full rounded-xl border border-gray-300 bg-white px-5 py-4 shadow-sm outline-none focus:border-gray-500"
-          />
-        </div>
-      </section>
-
-      {/* Filters */}
-      <section className="mx-auto max-w-6xl px-6">
-        <div className="flex flex-wrap justify-center gap-3">
-          <button className="rounded-full border bg-white px-5 py-2 text-sm">
-            🔇 Quiet
-          </button>
-
-          <button className="rounded-full border bg-white px-5 py-2 text-sm">
-            📶 Good WiFi
-          </button>
-
-          <button className="rounded-full border bg-white px-5 py-2 text-sm">
-            🔌 Lots of Outlets
-          </button>
-
-          <button className="rounded-full border bg-white px-5 py-2 text-sm">
-            👥 Not Crowded
-          </button>
-        </div>
-      </section>
-
-      {/* Study Spots */}
-      <section className="mx-auto max-w-6xl px-6 py-12">
-        <div className="mb-6">
-          <h3 className="text-2xl font-bold text-gray-900">
-            Study Spots
-          </h3>
-
-          <p className="mt-1 text-gray-600">
-            Explore places to study around campus.
+          <p className="mt-3 max-w-2xl text-base text-ink-muted">
+            Students rate each space on quietness, WiFi, outlets and how
+            easy it is to find a seat. Filter by what you need, or rank spots
+            by what matters most to you.
+          </p>
+          <p className="mt-6 text-sm text-ink-subtle">
+            {spots.length} {spots.length === 1 ? "space" : "spaces"} listed,{" "}
+            {ratings.length} {ratings.length === 1 ? "review" : "reviews"} so
+            far
           </p>
         </div>
-
-        {studySpots.length === 0 ? (
-          <p className="text-gray-500">
-            No study spots found.
-          </p>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {studySpots.map((spot) => (
-              <div
-                key={spot.id}
-                className="rounded-2xl border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-              >
-                <div className="mb-4">
-                  <h4 className="text-xl font-semibold text-gray-900">
-                    {spot.name}
-                  </h4>
-
-                  <p className="mt-1 text-sm text-gray-500">
-                    📍 {spot.building}
-                  </p>
-                </div>
-
-                <p className="text-sm leading-6 text-gray-600">
-                  {spot.description}
-                </p>
-
-                <div className="mt-5">
-                  <p className="text-sm text-gray-500">
-                    {spot.address}
-                  </p>
-                </div>
-
-                  <Link
-                    href={`/study-spots/${spot.id}`}
-                    className="mt-5 block w-full rounded-lg bg-gray-900 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-gray-800"
-                  >
-                   View Study Spot
-                  </Link>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
+
+      <SpotExplorer spots={spotsWithSummary} initialQuery={initialQuery} />
     </main>
   );
 }

@@ -2,162 +2,208 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LoaderCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { CRITERIA, type CriterionKey } from "@/lib/ratings";
+import type { Review } from "@/lib/types";
+import { buttonGhost, buttonPrimary, input } from "@/components/ui";
+import FormMessage, { type Message } from "@/components/FormMessage";
+
+const COMMENT_LIMIT = 1000;
+
+type Ratings = Record<CriterionKey, number | null>;
 
 type ReviewFormProps = {
   studySpotId: string;
+  userId: string;
+  /** When set, the form edits this review instead of creating a new one. */
+  existing?: Review;
+  onDone?: () => void;
 };
 
-export default function ReviewForm({ studySpotId }: ReviewFormProps) {
+function ratingsFrom(review?: Review): Ratings {
+  return {
+    noise: review?.noise_rating ?? null,
+    wifi: review?.wifi_rating ?? null,
+    outlets: review?.outlet_rating ?? null,
+    crowd: review?.crowd_rating ?? null,
+  };
+}
+
+export default function ReviewForm({
+  studySpotId,
+  userId,
+  existing,
+  onDone,
+}: ReviewFormProps) {
   const router = useRouter();
-
-  const [noiseRating, setNoiseRating] = useState(5);
-  const [wifiRating, setWifiRating] = useState(5);
-  const [outletRating, setOutletRating] = useState(5);
-  const [crowdRating, setCrowdRating] = useState(5);
-  const [comment, setComment] = useState("");
-
+  const [ratings, setRatings] = useState<Ratings>(() => ratingsFrom(existing));
+  const [comment, setComment] = useState(existing?.comment ?? "");
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<Message | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const missing = CRITERIA.filter((c) => ratings[c.key] === null);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+
+    if (missing.length > 0) {
+      setMessage({
+        type: "error",
+        text: `Please rate ${missing.map((c) => c.label.toLowerCase()).join(", ")}.`,
+      });
+      return;
+    }
 
     setSubmitting(true);
-    setMessage("");
+    setMessage(null);
 
-    const {
-    data: { user },
-    } = await supabase.auth.getUser();
+    const values = {
+      noise_rating: ratings.noise!,
+      wifi_rating: ratings.wifi!,
+      outlet_rating: ratings.outlets!,
+      crowd_rating: ratings.crowd!,
+      comment: comment.trim() || null,
+    };
 
-    if (!user) {
-    setMessage("You must be logged in to submit a review.");
+    const { data, error } = existing
+      ? await supabase
+          .from("reviews")
+          .update(values)
+          .eq("id", existing.id)
+          .eq("user_id", userId)
+          .select("id")
+      : await supabase
+          .from("reviews")
+          .insert({ ...values, study_spot_id: studySpotId, user_id: userId })
+          .select("id");
+
     setSubmitting(false);
-    return;
+
+    // Row level security can silently reject an update, which returns no rows.
+    if (error || !data || data.length === 0) {
+      if (error) console.error(error);
+      setMessage({
+        type: "error",
+        text: existing
+          ? "Your changes could not be saved. Please try again."
+          : "Your review could not be submitted. Please try again.",
+      });
+      return;
     }
 
-    const { error } = await supabase.from("reviews").insert({
-    study_spot_id: studySpotId,
-    user_id: user.id,
-    noise_rating: noiseRating,
-    wifi_rating: wifiRating,
-    outlet_rating: outletRating,
-    crowd_rating: crowdRating,
-    comment: comment || null,
-    });
+    if (!existing) {
+      setRatings(ratingsFrom());
+      setComment("");
+    }
 
-    if (error) {
-      console.error(error);
-      setMessage("Could not submit your review. Please try again.");
-    } else {
-    setMessage("Review submitted successfully!");
-    setNoiseRating(5);
-    setWifiRating(5);
-    setOutletRating(5);
-    setCrowdRating(5);
-    setComment("");
     router.refresh();
-    }
-
-    setSubmitting(false);
+    onDone?.();
   }
 
   return (
-    <div className="rounded-2xl border bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-gray-900">
-        Leave a Review
-      </h2>
-
-      <p className="mt-1 text-sm text-gray-500">
-        Rate this study spot based on your experience.
-      </p>
-
-      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {CRITERIA.map((criterion) => (
         <RatingInput
-          label="🔇 Noise"
-          value={noiseRating}
-          onChange={setNoiseRating}
+          key={criterion.key}
+          label={criterion.label}
+          lowLabel={criterion.lowLabel}
+          highLabel={criterion.highLabel}
+          value={ratings[criterion.key]}
+          onChange={(value) =>
+            setRatings((r) => ({ ...r, [criterion.key]: value }))
+          }
         />
+      ))}
 
-        <RatingInput
-          label="📶 WiFi"
-          value={wifiRating}
-          onChange={setWifiRating}
-        />
-
-        <RatingInput
-          label="🔌 Outlets"
-          value={outletRating}
-          onChange={setOutletRating}
-        />
-
-        <RatingInput
-          label="👥 Crowding"
-          value={crowdRating}
-          onChange={setCrowdRating}
-        />
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Comment
+      <div>
+        <div className="flex items-baseline justify-between">
+          <label
+            htmlFor={`comment-${existing?.id ?? "new"}`}
+            className="text-sm font-medium text-ink"
+          >
+            Comment <span className="font-normal text-ink-subtle">(optional)</span>
           </label>
-
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="What was your experience like?"
-            rows={4}
-            className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
-          />
+          <span className="text-xs tabular-nums text-ink-subtle">
+            {comment.length} / {COMMENT_LIMIT}
+          </span>
         </div>
+        <textarea
+          id={`comment-${existing?.id ?? "new"}`}
+          value={comment}
+          maxLength={COMMENT_LIMIT}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Best time to go, where the outlets are, anything else worth knowing"
+          rows={4}
+          className={`${input} mt-2 resize-y`}
+        />
+      </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-        >
-          {submitting ? "Submitting..." : "Submit Review"}
+      {message && <FormMessage message={message} />}
+
+      <div className="flex gap-2">
+        <button type="submit" disabled={submitting} className={buttonPrimary}>
+          {submitting && (
+            <LoaderCircle className="size-4 animate-spin" aria-hidden />
+          )}
+          {existing ? "Save changes" : "Post review"}
         </button>
-
-        {message && (
-          <p className="text-sm text-gray-600">
-            {message}
-          </p>
+        {onDone && (
+          <button type="button" onClick={onDone} className={buttonGhost}>
+            Cancel
+          </button>
         )}
-      </form>
-    </div>
+      </div>
+    </form>
   );
 }
 
 function RatingInput({
   label,
+  lowLabel,
+  highLabel,
   value,
   onChange,
 }: {
   label: string;
-  value: number;
+  lowLabel: string;
+  highLabel: string;
+  value: number | null;
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm font-medium text-gray-700">
-        {label}
-      </span>
-
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((rating) => (
-          <button
-            key={rating}
-            type="button"
-            onClick={() => onChange(rating)}
-            className={`text-xl ${
-              rating <= value ? "text-yellow-400" : "text-gray-300"
-            }`}
-          >
-            ★
-          </button>
-        ))}
+    <fieldset>
+      <legend className="text-sm font-medium text-ink">{label}</legend>
+      <div
+        role="radiogroup"
+        aria-label={label}
+        className="mt-2 grid grid-cols-5 overflow-hidden rounded-md border border-line-strong"
+      >
+        {[1, 2, 3, 4, 5].map((rating) => {
+          const selected = value === rating;
+          return (
+            <button
+              key={rating}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={`${rating} out of 5`}
+              onClick={() => onChange(rating)}
+              className={`border-l border-line-strong py-2 text-sm tabular-nums first:border-l-0 ${
+                selected
+                  ? "bg-accent font-medium text-white"
+                  : "bg-surface text-ink-muted hover:bg-canvas"
+              }`}
+            >
+              {rating}
+            </button>
+          );
+        })}
       </div>
-    </div>
+      <div className="mt-1 flex justify-between text-xs text-ink-subtle">
+        <span>{lowLabel}</span>
+        <span>{highLabel}</span>
+      </div>
+    </fieldset>
   );
 }
